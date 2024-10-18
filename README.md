@@ -1,30 +1,33 @@
-# TÍTULO DO PROJETO
+# Sistema de Garagem ANPR
+Sistema de Garagem baseado em ANPR usando Raspberry Pi
 
-`CAMPUS`
+`PUC Minas - Campus Lourdes`
 
-`CURSO`
+`Engenharia de Computação`
 
-`SEMESTRE`
+`Terceiro semestre`
 
-`DISCIPLINA`
+`Internet das Coisas`
 
+## Visão Geral do Projeto
+
+Este projeto busca desenvolver um Sistema de Gerenciamento de Garagem com tecnologia de Reconhecimento Automático de Placas de Veículos (ANPR) utilizando um Raspberry Pi, integrando sensores e atuadores para simular cenários reais e gerenciar o estacionamento de forma eficiente. Além disso, o projeto visa analisar a relevância do ANPR no controle de estacionamentos, promovendo o aprendizado e a aplicação de machine learning em dispositivos IoT focados em automação.
+A metodologia envolve um processo completo: captura de imagens de veículos usando Raspberry Pi, reconhecimento de placas através de visão computacional(YoLo v8), extração de texto das placas via OCR, armazenamento dos dados em um banco de dados e simulação de um modelo de garagem com sensores e atuadores controlados por ESP-32, abrangendo assim desde a coleta de dados até a implementação prática em um ambiente simulado.
 
 ## Integrantes
 
-* Nome completo do aluno 1
-* Nome completo do aluno 2
-* Nome completo do aluno 3
-* Nome completo do aluno 4
-* Nome completo do aluno 5
+* Charles Santos
+* Felipe Mello
+* Talita Justo
+* Paulo Dimas
+* Rafael Barbosa
 
 ## Orientador
 
-* Nome completo do professor 1 (Nome do professor de IoT1)
-* Nome completo do professor 2 (Nome do professor de Banco de Dados)
+* Júlio Conway (IoT)
+* Felipe Lara (Banco de Dados)
 
-## Resumo
-
-Descrever resumidamente, em um ou dois parágrafos, o projeto que está sendo desenvolvido.
+Para mais detalhes, visite [GitHub Project](https://github.com/users/filipinmello/projects/3).
 
 # Código (do arduino ou esp32)
 
@@ -56,4 +59,3 @@ Descrever resumidamente, em um ou dois parágrafos, o projeto que está sendo de
 <li><a href="Documentacao/05-Conclusão.md"> Conclusão </a></li>
 <li><a href="Documentacao/06-Referências.md"> Referências </a></li>
 </ol>
-
