@@ -1,3 +1,6 @@
 # Apresentação da Solução
 
-Use esta pasta para salvar o vídeo demonstrando o funcionamento do projeto e as fotos para documentação do mesmo.
+Esta seção contém os recursos visuais e demonstrativos do projeto, organizados nas seguintes pastas:
+
+apresentacao/: Contém o vídeo principal demonstrando o funcionamento completo do projeto
+test_videos_yolov10_first_training/: Vídeos dos testes realizados após o primeiro treinamento do modelo YOLOv10
