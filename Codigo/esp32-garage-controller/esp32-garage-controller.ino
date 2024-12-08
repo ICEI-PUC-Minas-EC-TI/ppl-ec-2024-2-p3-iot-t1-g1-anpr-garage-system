@@ -15,14 +15,14 @@ Funções do esp:
 ================================================
 */
 
-/* Definicoes para o MQTT */
-/*
+/* 
 ================================================
-alterar os topicos subscritos
+Definicoes para o MQTT 
 ================================================
 */
-#define TOPICO_SUBSCRIBE_LED         "topico_liga_desliga_led_2"
-#define TOPICO_PUBLISH_TEMPERATURA   "topico_sensor_temperatura_2"
+#define TOPICO_VAGAS "topico-painel-de-controle-vagas"
+#define TOPICO_CATRACA "topico-painel-de-controle-catraca"
+#define TOPICO_DETECTA "topico-carro-detectado"
 
 #define ID_MQTT  "IoT_Paulo_PUC_SG_mqtt"
 
@@ -102,8 +102,8 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
 
   /*
   ================================================
-  Se topic == topico-painel-de-controle
-    - se msg == valor numerico N(1-5), acende led[N-1]
+  Se topic == topico-painel-de-controle-vagas OU topico-painel-de-controle-catraca
+    - se msg == valor numerico N(1-5), acende led[N-1] amarelo
     - se msg == "abrir", abre a catraca
     - se msg == "fechar", fecha a catraca
 
@@ -215,7 +215,10 @@ void loop() {
   /*
   ================================================
   publicar info das vagas
-  em um vetor de sensores, quais estão HIGH(?)
+  em um vetor de sensores, quais estão HIGH
+  topico-painel-de-controle-vagas
+  - enviar Nr ou Nl quando uma vaga ficar ocupada ou livre
+  - enviar total de vagas ocupadas no vetor de sensores a cada X segundos
   ================================================
   */
   
