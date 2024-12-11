@@ -1,0 +1,17 @@
+*.json
+__pycache__/
+
+# Virtual environments
+venv/
+env/
+.env/
+.venv/
+ENV/
+
+#IDE
+.vscode/
+
+# Local development settings
+.env
+.env.local
+*.log

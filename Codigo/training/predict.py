@@ -1,7 +1,7 @@
 import cv2
 import time
 from ultralytics import YOLOv10 as YOLO
-from util import ler_placa, dump_results
+from util import ler_placa, dump_results, get_maior_placa
 
 # Carrega o modelo treinado
 model = YOLO('./runs/detect/train1/weights/last.pt')
@@ -64,6 +64,13 @@ while True:
 
         if time.perf_counter() - start_time > 5:
             dump_results(results)
+            maior_conf = get_maior_placa('results.json')
+            if maior_conf:
+                texto, confianca = maior_conf
+                print(f"Placa: {texto}, Confiança: {confianca}")
+
+            video_capture.release()
+            cv2.destroyAllWindows()
             exit()
 
         # Desenha a caixa

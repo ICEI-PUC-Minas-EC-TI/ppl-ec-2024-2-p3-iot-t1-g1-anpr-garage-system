@@ -62,3 +62,35 @@ def ler_placa(placa):
 def dump_results(results, filename='results.json'):
    with open(filename, 'w', encoding='utf-8') as f:
        json.dump(results, f, indent=4, ensure_ascii=False)
+
+def get_maior_placa(results_json):
+    try:
+        # Abre e lê o arquivo JSON
+        with open(results_json, 'r') as file:
+            data = json.load(file)
+        
+        # Verifica se existe a chave 'placas' no JSON
+        if 'placas' not in data:
+            print("Erro: O arquivo JSON não contém a chave 'placas'")
+            return None
+            
+        # Verifica se há placas no arquivo
+        if not data['placas']:
+            print("Erro: Não há placas no arquivo")
+            return None
+            
+        # Encontra a placa com maior confiança
+        placa_maior_conf = max(data['placas'], key=lambda x: x['conf'])
+        
+        # Retorna uma tupla com o texto e a confiança
+        return (placa_maior_conf['texto'], placa_maior_conf['conf'])
+        
+    except FileNotFoundError:
+        print(f"Erro: O arquivo {results_json} não foi encontrado")
+        return None
+    except json.JSONDecodeError:
+        print("Erro: O arquivo não está em um formato JSON válido")
+        return None
+    except Exception as e:
+        print(f"Erro inesperado: {str(e)}")
+        return None
