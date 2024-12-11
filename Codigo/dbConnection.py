@@ -1,57 +1,9 @@
 import paho.mqtt.client as mqtt
+import requests
 
 # importe o conector do Python com o MySQL: instalar novamente neste env (environment)
 import mysql.connector
 
-# agora é necessário criar um objeto de conexão: encontra o MySQL e informa as credenciais para se conectar ao banco
-# instalar novamente o concetor: pip install mysql-connector-python
-"""
-====================================================================
-alterar dados para conexão
-====================================================================
-"""
-con = mysql.connector.connect(host='localhost', database='IoT',user='root',password='cronoeston2')
-
-# verifique se a conexão ao BD foi realizada com sucesso
-if con.is_connected():
-    db_info = con.get_server_info()
-    print("Conentado com sucesso ao Servidor ", db_info)
-
-    # a partir de agora pode-se executar comandos SQL: para tanto é necessário criar um objeto tipo cursor
-    # o cursor permite acesso aos elementos do BD
-    cursor = con.cursor()
-
-    # agora você pode executar o seu comando SQL. Por exemplo o comando "select database();" mostra o BD atual selecionado
-    cursor.execute("select database();")
-    # crio uma variável qualquer para receber o retorno do comando de execução
-    linha = cursor.fetchone()
-    print("Conectado ao DB", linha)
-
-    """
-    ====================================================================
-    alterar create table para corresponder com nosso DER
-    ====================================================================
-    """
-    # createTable é usada no comando SQL para  criar a tabela dadosIoT, que só tem um registro chamado "mensagem"
-    createTable = """
-                CREATE TABLE dadosIoT (id INT AUTO_INCREMENT, 
-                                       mensagem TEXT(512), 
-                                       PRIMARY KEY (id));
-            """
-
-    # este par try/except verifica se a tabeja  já está criada. Se a tabela não existe, cai no try e é criada
-    # se existe, cai no except e só mostra a mensagem que  a tabela existe
-    try:
-        cursor.execute(createTable)
-    except:
-        print("Tabela dadosIoT já existe.")
-        pass
-
-def print_hi(name):
-    # mensagem inicial
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-# esta função é a função callback informando que o cliente se conectou ao servidor
 def on_connect(client, userdata, flags, rc):
     print("Connectado com codigo "+str(rc))
 
@@ -63,9 +15,7 @@ def on_connect(client, userdata, flags, rc):
     ====================================================================
     """
     client.subscribe("topico_sensor_temperatura")
-
-
-# esta função é a função callback que é chamada quando uma publicação é recebida do servidor
+    # esta função é a função callback que é chamada quando uma publicação é recebida do servidor
 def on_message(client, userdata, msg):
     print("Mensagem recebida no tópico: " + msg.topic)
     print("Mensagem: "+ str(msg.payload.decode()) + "º")
@@ -79,26 +29,49 @@ def on_message(client, userdata, msg):
     retornar os dados do carro
     ====================================================================
     """
+   
+    # Decodificar a mensagem recebida
+    placa = msg.payload.decode().strip()
+    print(f"Placa recebida: {placa}")
+
+    url = f"https://wdapi2.com.br/consulta/{placa}/c4709b65a108c070d36bae5b56bb1336"
+    try:
+        # Faz a requisição na API
+        response = requests.get(url)
+        response.raise_for_status()  
+
+        data = response.json()
+
+        # Extração das informações
+        marca = data.get("MARCA", "Não encontrado")
+        cor = data.get ("cor", "Não encontrado")
+        modelo = data.get("MODELO", "Não encontrado")
+        ano = data.get("ano", "Não encontrado")
+        
+        # Exibe as informações
+        print(f"Marca: {marca}")
+        print(f"Cor: {cor}")
+        print(f"Modelo: {modelo}")
+        print(f"Ano: {ano}")
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Erro na requisição: {e}")
+    except ValueError:
+        print("Erro ao processar a resposta JSON.")
 
     """
     ====================================================================
     mandar os dados recebidos pela api para o banco de dados
     ====================================================================
     """
-
+    
     if str(msg.payload.decode().strip()) == "termina":
         print("Recebeu comando termina.")
-        if con.is_connected():
-            cursor.close()
-            con.close()
-            print("Fim da conexão com o Banco dadosIoT")
-
-    if str(msg.payload.decode().strip())  == "delete":
-        cursor.execute("TRUNCATE TABLE dadosIoT")
+        
 
 
 if __name__ == '__main__':
-    print_hi('Olá Turma.')
+    # print_hi('Olá Turma.')
 
     client = mqtt.Client()
     client.on_connect = on_connect
