@@ -1,233 +1,301 @@
-#include <Arduino.h>//CODIGO CERTO
+#include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <ESP32Servo.h>
 
-#define PIN_LED 2
-#define PIN_LED2 22
+// Definições de estados e constantes
+enum EstadoVaga {
+  LIVRE,
+  OCUPADA,
+  RESERVADA
+};
 
-/*
-================================================
-Funções do esp:
- - receber flag do espRaspberryConection.py
- - controlar o motor baseado nessa flag
- - publicar qual vaga está ou não ocupada
- - receber comandos para reservar uma vaga
-================================================
-*/
+// Constantes para o servo
+const int SERVO_ABERTO = 90;
+const int SERVO_FECHADO = 0;
+const int SERVO_PIN = 35;  
 
-/* 
-================================================
-Definicoes para o MQTT 
-================================================
-*/
+// Constantes de tempo
+const unsigned long PUBLISH_INTERVAL = 2000;
+const unsigned long DEBOUNCE_DELAY = 50;
+const unsigned long WIFI_TIMEOUT = 10000;
+const unsigned long CATRACA_TIMEOUT = 5000;
+const unsigned long MQTT_RETRY_INTERVAL = 5000;
+const unsigned long WIFI_CHECK_INTERVAL = 100;
+
+// Definições MQTT
 #define TOPICO_VAGAS "topico-painel-de-controle-vagas"
 #define TOPICO_CATRACA "topico-painel-de-controle-catraca"
 #define TOPICO_DETECTA "topico-carro-detectado"
+#define TOPICO_VAGAS_OCUPADAS "topico-total-vagas-ocupadas"
+#define ID_MQTT "IoT_Paulo_PUC_SG_mqtt"
 
-#define ID_MQTT  "IoT_Paulo_PUC_SG_mqtt"
-
-const char* BROKER_MQTT = "test.mosquitto.org";
-int BROKER_PORT = 1883; // Porta do Broker MQTT
-
-//celular
+// Configurações de rede 
 const char* SSID = "Galaxy J6+2944";
 const char* PASSWORD = "paulokjh17";
+const char* BROKER_MQTT = "test.mosquitto.org";
+const int BROKER_PORT = 1883;
 
-//Variáveis e objetos globais
-WiFiClient espClient; // Cria o objeto espClient
-PubSubClient MQTT(espClient); // Instancia o Cliente MQTT passando o objeto espClient
+// Estrutura para gerenciar uma vaga
+struct Vaga {
+  bool ocupada;
+  bool reservada;
+  int pinoSensor;
+  int ledPins[3];  // R, G, B
+  int ultimoEstadoSensor;
+  unsigned long ultimoDebounceTime;
+};
 
-long numAleatorio;
+// Configuração do sistema
+const int numVagas = 3;
+Vaga vagas[numVagas] = {
+  {false, false, 34, {26, 25, 33}, LOW, 0},  // Vaga 1
+  {false, false, 14, {18, 19, 21}, LOW, 0},  // Vaga 2
+  {false, false, 13, {15, 2, 4}, LOW, 0}     // Vaga 3
+};
 
+// Variáveis globais
+WiFiClient espClient;
+PubSubClient MQTT(espClient);
+Servo catraca;
+unsigned long ultimaPublicacao = 0;
+unsigned long tempoCatracaAberta = 0;
+unsigned long ultimaTentativaMQTT = 0;
+unsigned long ultimaVerificacaoWiFi = 0;
+bool catracaAtiva = false;
 
-/* Prototypes */
-void initWiFi(void);
-void initMQTT(void);
-void mqtt_callback(char* topic, byte* payload, unsigned int length);
-void reconnectMQTT(void);
-void reconnectWiFi(void);
-void VerificaConexoesWiFIEMQTT(void);
+// Protótipos de funções
+void initWiFi();
+void initMQTT();
+void verificaConexaoMQTT();
+void verificaConexaoWiFi();
+bool publicaMQTT(const char* topico, const char* mensagem);
+void controlaCatraca(bool abrir);
+void atualizaLED(int vagaIndex);
+void processaSensor(int vagaIndex);
+void publicaStatusVagas();
 
-/*
-   Implementações
-*/
-
-/* Função: inicializa e conecta-se na rede WI-FI desejada
-   Parâmetros: nenhum
-   Retorno: nenhum
-*/
-void initWiFi(void)
-{
-  delay(10);
-  Serial.println("------Conexao WI-FI------");
-  Serial.print("Conectando-se na rede: ");
-  Serial.println(SSID);
-  Serial.println("Aguarde");
-
-  reconnectWiFi();
-}
-
-
-/* Função: inicializa parâmetros de conexão MQTT(endereço do
-           broker, porta e inicializa a função de callback)
-   Parâmetros: nenhum
-   Retorno: nenhum
-*/
-void initMQTT(void)
-{
-  MQTT.setServer(BROKER_MQTT, BROKER_PORT);   //informa qual broker e porta deve ser conectado
-  MQTT.setCallback(mqtt_callback);            //atribui função de callback (função chamada quando qualquer informação de um dos tópicos subescritos chega)
-}
-
-/* Função: função de callback
-           esta função é chamada toda vez que uma informação de
-           um dos tópicos subescritos chega)
-   Parâmetros: nenhum
-   Retorno: nenhum
-*/
-void mqtt_callback(char* topic, byte* payload, unsigned int length)
-{
+// Função de callback MQTT
+void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   String msg;
-
-  /* obtem a string do payload recebido */
-  for (int i = 0; i < length; i++)
-  {
-    char c = (char)payload[i];
-    msg += c;
+  for (int i = 0; i < length; i++) {
+    msg += (char)payload[i];
   }
-
-  Serial.print("Chegou a seguinte string via MQTT: ");
-  Serial.println(msg);
-  /* toma ação dependendo da string recebida */
-
-  /*
-  ================================================
-  Se topic == topico-painel-de-controle-vagas OU topico-painel-de-controle-catraca
-    - se msg == valor numerico N(1-5), acende led[N-1] amarelo
-    - se msg == "abrir", abre a catraca
-    - se msg == "fechar", fecha a catraca
-
-  Se topic == topico-carro-detectado
-    - se msg == "detectado", abre a catraca por X segundos
-  ================================================
-  */
   
-}
-/* Função: reconecta-se ao broker MQTT (caso ainda não esteja conectado ou em caso de a conexão cair)
-           em caso de sucesso na conexão ou reconexão, o subscribe dos tópicos é refeito.
-   Parâmetros: nenhum
-   Retorno: nenhum
-*/
-void reconnectMQTT(void)
-{
-  while (!MQTT.connected())
-  {
-    Serial.print("* Tentando se conectar ao Broker MQTT: ");
-    Serial.println(BROKER_MQTT);
-    if (MQTT.connect(ID_MQTT))
-    {
-      Serial.println("Conectado com sucesso ao broker MQTT!");
-      MQTT.subscribe(TOPICO_SUBSCRIBE_LED);
+  Serial.printf("Mensagem recebida [%s]: %s\n", topic, msg.c_str());
+  
+  if (String(topic) == TOPICO_VAGAS) {
+    if (msg.length() >= 2) {
+      int vaga = msg[0] - '0' - 1; // Converte char para int e ajusta índice
+      char comando = msg[1];
+      
+      if (vaga >= 0 && vaga < numVagas) {
+        if (comando == 'r') {
+          vagas[vaga].reservada = true;
+          atualizaLED(vaga);
+        }
+      }
     }
-    else
-    {
-      Serial.println("Falha ao reconectar no broker.");
-      Serial.println("Havera nova tentativa de conexao em 2s");
-      delay(2000);
+  } else if (String(topic) == TOPICO_CATRACA) {
+    if (msg == "abrir") {
+      controlaCatraca(true);
+    } else if (msg == "fechar") {
+      controlaCatraca(false);
     }
-  }  
-}
-/* Função: verifica o estado das conexões WiFI e ao broker MQTT.
-           Em caso de desconexão (qualquer uma das duas), a conexão
-           é refeita.
-   Parâmetros: nenhum
-   Retorno: nenhum
-*/
-void VerificaConexoesWiFIEMQTT(void)
-{
-  if (!MQTT.connected())
-    reconnectMQTT(); //se não há conexão com o Broker, a conexão é refeita
-
-  reconnectWiFi(); //se não há conexão com o WiFI, a conexão é refeita
-}
-
-/* Função: reconecta-se ao WiFi
-   Parâmetros: nenhum
-   Retorno: nenhum
-*/
-void reconnectWiFi(void)
-{
-  //se já está conectado à rede WI-FI, nada é feito.
-  //Caso contrário, são efetuadas tentativas de conexão
-  if (WiFi.status() == WL_CONNECTED)
-    return;
-
-  WiFi.begin(SSID, PASSWORD); // Conecta na rede WI-FI
-
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(100);
-    Serial.print(".");
+  } else if (String(topic) == TOPICO_DETECTA && msg.length() > 0) {
+    controlaCatraca(true);
+    tempoCatracaAberta = millis();
+    catracaAtiva = true;
   }
-
-  Serial.println();
-  Serial.print("Conectado com sucesso na rede ");
-  Serial.print(SSID);
-  Serial.println("\nIP obtido: ");
-  Serial.println(WiFi.localIP());
 }
 
+void verificaConexaoMQTT() {
+  if (!MQTT.connected()) {
+    unsigned long agora = millis();
+    if (agora - ultimaTentativaMQTT >= MQTT_RETRY_INTERVAL) {
+      Serial.print("Conectando ao broker MQTT...");
+      if (MQTT.connect(ID_MQTT)) {
+        Serial.println("Conectado!");
+        MQTT.subscribe(TOPICO_VAGAS);
+        MQTT.subscribe(TOPICO_CATRACA);
+        MQTT.subscribe(TOPICO_DETECTA);
+      } else {
+        Serial.print("Falha, rc=");
+        Serial.print(MQTT.state());
+        Serial.println(" Tentando novamente mais tarde...");
+      }
+      ultimaTentativaMQTT = agora;
+    }
+  }
+}
+
+void verificaConexaoWiFi() {
+  if (WiFi.status() != WL_CONNECTED) {
+    unsigned long agora = millis();
+    if (agora - ultimaVerificacaoWiFi >= WIFI_CHECK_INTERVAL) {
+      Serial.print(".");
+      ultimaVerificacaoWiFi = agora;
+    }
+    
+    if (agora - ultimaVerificacaoWiFi >= WIFI_TIMEOUT) {
+      Serial.println("\nFalha ao reconectar ao WiFi");
+      WiFi.begin(SSID, PASSWORD);
+      ultimaVerificacaoWiFi = agora;
+    }
+  }
+}
+
+void initWiFi() {
+  Serial.println("Iniciando conexão WiFi");
+  WiFi.begin(SSID, PASSWORD);
+  unsigned long startTime = millis();
+  
+  while (WiFi.status() != WL_CONNECTED && millis() - startTime < WIFI_TIMEOUT) {
+    unsigned long currentTime = millis();
+    if (currentTime - ultimaVerificacaoWiFi >= WIFI_CHECK_INTERVAL) {
+      Serial.print(".");
+      ultimaVerificacaoWiFi = currentTime;
+    }
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi conectado");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\nFalha na conexão WiFi");
+  }
+  
+  WiFi.setSleep(false);
+}
+
+void initMQTT() {
+  MQTT.setServer(BROKER_MQTT, BROKER_PORT);
+  MQTT.setCallback(mqtt_callback);
+}
+
+bool publicaMQTT(const char* topico, const char* mensagem) {
+  if (!MQTT.connected()) return false;
+  return MQTT.publish(topico, mensagem);
+}
+
+void controlaCatraca(bool abrir) {
+  catraca.write(abrir ? SERVO_ABERTO : SERVO_FECHADO);
+}
+
+void atualizaLED(int vagaIndex) {
+  if (vagaIndex < 0 || vagaIndex >= numVagas) return;
+  
+  Vaga& vaga = vagas[vagaIndex];
+  
+  // Desliga todos os LEDs primeiro
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(vaga.ledPins[i], HIGH);
+  }
+  
+  if (vaga.reservada) {
+    // Amarelo (RED + GREEN)
+    digitalWrite(vaga.ledPins[0], LOW);
+    digitalWrite(vaga.ledPins[1], LOW);
+  } else if (vaga.ocupada) {
+    // Vermelho
+    digitalWrite(vaga.ledPins[0], LOW);
+  } else {
+    // Verde
+    digitalWrite(vaga.ledPins[1], LOW);
+  }
+}
+
+void processaSensor(int vagaIndex) {
+  if (vagaIndex < 0 || vagaIndex >= numVagas) return;
+  
+  Vaga& vaga = vagas[vagaIndex];
+  int leitura = !digitalRead(vaga.pinoSensor);
+  
+  if (leitura != vaga.ultimoEstadoSensor) {
+    vaga.ultimoDebounceTime = millis();
+  }
+  
+  if ((millis() - vaga.ultimoDebounceTime) > DEBOUNCE_DELAY) {
+    bool novoEstado = (leitura == HIGH);
+    if (novoEstado != vaga.ocupada && !vaga.reservada) {
+      vaga.ocupada = novoEstado;
+      atualizaLED(vagaIndex);
+      
+      char mensagem[3];
+      snprintf(mensagem, sizeof(mensagem), "%d%c", vagaIndex + 1, 
+               vaga.ocupada ? 'o' : 'v');
+      publicaMQTT(TOPICO_VAGAS, mensagem);
+    }
+  }
+  
+  vaga.ultimoEstadoSensor = leitura;
+}
+
+void publicaStatusVagas() {
+  int vagasOcupadas = 0;
+  for (int i = 0; i < numVagas; i++) {
+    if (vagas[i].ocupada || vagas[i].reservada) vagasOcupadas++;
+  }
+  
+  char mensagem[3];
+  snprintf(mensagem, sizeof(mensagem), "%d", vagasOcupadas);
+  publicaMQTT(TOPICO_VAGAS_OCUPADAS, mensagem);
+}
 
 void setup() {
-  Serial.begin(9600); //Enviar e receber dados em 9600 baud
-  delay(1000);
-  Serial.println("\nDisciplina IoT: acesso a nuvem via ESP32");
-  delay(1000);
-  // programa LED interno como saida
-
-  /*
-  ================================================
-  alterar variaveis de sensores/atuadores
-  ================================================
-  */
-
-  pinMode(PIN_LED, OUTPUT);
-  pinMode(PIN_LED2, OUTPUT);
+  Serial.begin(115200);
   
-  digitalWrite(PIN_LED, HIGH);
-  digitalWrite(PIN_LED2, HIGH);
-  delay(1000);
-  digitalWrite(PIN_LED, LOW);    // apaga o LED
-  digitalWrite(PIN_LED2, LOW);
-
-  /* Inicializa a conexao wi-fi */
+  // Verifica memória disponível
+  if (ESP.getFreeHeap() < 10000) {
+    Serial.println("Aviso: Pouca memória disponível!");
+  }
+  
+  // Configuração dos pinos
+  for (int i = 0; i < numVagas; i++) {
+    pinMode(vagas[i].pinoSensor, INPUT);
+    for (int j = 0; j < 3; j++) {
+      pinMode(vagas[i].ledPins[j], OUTPUT);
+      digitalWrite(vagas[i].ledPins[j], HIGH);
+    }
+  }
+  
+  // Configuração do servo
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  catraca.setPeriodHertz(50);
+  catraca.attach(SERVO_PIN, 500, 2400);
+  controlaCatraca(false);
+  
+  // Inicialização das conexões
+  btStop();  // Desliga Bluetooth
   initWiFi();
-
-  /* Inicializa a conexao ao broker MQTT */
   initMQTT();
 }
 
-// the loop function runs over and over again forever
 void loop() {
-/* garante funcionamento das conexões WiFi e ao broker MQTT */
-  VerificaConexoesWiFIEMQTT();
-
-  /*
-  ================================================
-  publicar info das vagas
-  em um vetor de sensores, quais estão HIGH
-  topico-painel-de-controle-vagas
-  - enviar Nr ou Nl quando uma vaga ficar ocupada ou livre
-  - enviar total de vagas ocupadas no vetor de sensores a cada X segundos
-  ================================================
-  */
+  unsigned long agora = millis();
   
-  /* keep-alive da comunicação com broker MQTT */
+  // Verifica conexões
+  verificaConexaoMQTT();
+  verificaConexaoWiFi();
+  
+  // Processa sensores
+  for (int i = 0; i < numVagas; i++) {
+    processaSensor(i);
+    yield();
+  }
+  
+  // Publica status periodicamente
+  if (agora - ultimaPublicacao >= PUBLISH_INTERVAL) {
+    publicaStatusVagas();
+    ultimaPublicacao = agora;
+  }
+  
+  // Controle automático da catraca
+  if (catracaAtiva && (agora - tempoCatracaAberta >= CATRACA_TIMEOUT)) {
+    controlaCatraca(false);
+    catracaAtiva = false;
+  }
+  
   MQTT.loop();
-
-  /*
-  ================================================
-    Refazer o ciclo após 2 segundos
-  ================================================
-  */
 }
