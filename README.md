@@ -12,7 +12,8 @@ Sistema de Garagem baseado em ANPR usando Raspberry Pi
 ## Visão Geral do Projeto
 
 Este projeto busca desenvolver um Sistema de Gerenciamento de Garagem com tecnologia de Reconhecimento Automático de Placas de Veículos (ANPR) utilizando um Raspberry Pi, integrando sensores e atuadores para simular cenários reais e gerenciar o estacionamento de forma eficiente. Além disso, o projeto visa analisar a relevância do ANPR no controle de estacionamentos, promovendo o aprendizado e a aplicação de machine learning em dispositivos IoT focados em automação.
-A metodologia envolve um processo completo: captura de imagens de veículos usando Raspberry Pi, reconhecimento de placas através de visão computacional(YoLo v10), extração de texto das placas via OCR, armazenamento dos dados em um banco de dados e simulação de um modelo de garagem com sensores e atuadores controlados por ESP-32, abrangendo assim desde a coleta de dados até a implementação prática em um ambiente simulado.
+
+A metodologia envolve um processo completo: captura de imagens de veículos usando Raspberry Pi, reconhecimento de placas através de visão computacional(YOLO v10), extração de texto das placas via OCR, armazenamento dos dados em um banco de dados e simulação de um modelo de garagem com sensores e atuadores controlados por ESP-32, abrangendo assim desde a coleta de dados até a implementação prática em um ambiente simulado.
 
 ## Integrantes
 
@@ -30,10 +31,6 @@ A metodologia envolve um processo completo: captura de imagens de veículos usan
 # Código
 
 <li><a href="Codigo/README.md"> Código Fonte</a></li>
-
-# Aplicativo para Smartphone
-
-<li><a href="App/README.md"> Aplicativo </a></li>
 
 # Apresentação
 

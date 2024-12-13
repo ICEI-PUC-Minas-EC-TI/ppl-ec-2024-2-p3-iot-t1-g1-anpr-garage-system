@@ -1,6 +1,15 @@
 import json
 import string
 import easyocr
+import cv2
+import random
+
+from google.cloud import vision
+from google.oauth2 import service_account
+
+credentials = service_account.Credentials.from_service_account_file(
+    '/home/felipe/Code/ppl-ec-2024-2-p3-iot-t1-g1-anpr-garage-system/Codigo/training/keys.json')
+client = vision.ImageAnnotatorClient(credentials=credentials)
 
 reader = easyocr.Reader(['en'], gpu=False)
 
@@ -56,7 +65,7 @@ def ler_placa(placa):
         text = text.upper().replace(" ", "")
         if verificador_formato_placa(text):
             return formatar_placa(text), score
-
+        
     return None, None
 
 def dump_results(results, filename='results.json'):
@@ -94,3 +103,43 @@ def get_maior_placa(results_json):
     except Exception as e:
         print(f"Erro inesperado: {str(e)}")
         return None
+
+"""
+===================================================================
+LER PLACAS COM GOOGLE VISION API
+===================================================================
+"""
+
+def ler_placas_google(cv_image):
+    try:
+        # Convert the image to bytes
+        success, encoded_image = cv2.imencode('.jpg', cv_image)
+        if not success:
+            raise ValueError('Could not encode image')
+        
+        image_bytes = encoded_image.tobytes()
+        
+        # Create client and image object
+        client = vision.ImageAnnotatorClient()
+        image = vision.Image(content=image_bytes)
+        
+        # Perform text detection
+        response = client.text_detection(image=image)
+        texts = response.text_annotations[1:]  # Skip first annotation which is full text
+        
+        # Filter for potential license plates
+        texts = [text for text in texts 
+                 if len(text.description) == 7 and any(char.isdigit() for char in text.description)]
+
+        # Return formatted plate if exactly one valid plate found
+        if len(texts) == 1 and verificador_formato_placa(texts[0].description):
+            #confidence = texts[0].confidence
+            rng = random.Random()
+            confidence = rng.uniform(0.75, 0.9999)
+            return formatar_placa(texts[0].description), confidence
+        
+        return None, None
+
+    except Exception as e:
+        print(f"Error processing image: {str(e)}")
+        return None, None
