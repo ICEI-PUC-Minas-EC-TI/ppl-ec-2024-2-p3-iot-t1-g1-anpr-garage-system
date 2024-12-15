@@ -4,15 +4,12 @@ import os
 from picamera2 import Picamera2
 from ultralytics import YOLOv10 as YOLO
 from util import dump_results, get_maior_placa, ler_placas_google
-
-import sys
-sys.path.append('../')  # Only need to go up one level since you're in 'training'
 from espRaspberryConnection import car_detection
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # Carrega o modelo treinado
-model = YOLO('./runs/detect/train1/weights/last.pt')
+model = YOLO('./training/runs/detect/train1/weights/last.pt')
 
 results = {}
 
@@ -75,20 +72,12 @@ while True:
                 texto, confianca = maior_conf
                 print(f"Placa: {texto}, Confiança: {confianca}")
                 car_detection(texto)
+                results["placas"] = []
 
 
-            picam2.stop()
-            cv2.destroyAllWindows()
-            exit()
-
-        # Desenha a caixa
-        if conf > 0.5:
-            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 4)
-            cv2.putText(frame, label, (int(x1), int(y1) - 10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-
-    # mostra os frames
-    cv2.imshow('YOLO Detection', frame)
+            # picam2.stop()
+            # cv2.destroyAllWindows()
+            # exit()
 
     # 'q' pra breakar o codigo
     if cv2.waitKey(1) & 0xFF == ord('q'):
